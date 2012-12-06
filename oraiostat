@@ -1,0 +1,80 @@
+#!/bin/ksh
+# DESCRIPTION
+# Realtime Oracle IO statistics
+# Usage: oraiostat [Interval] [connection_string] 
+#
+#(YYYY/MM/DD)   MODIFIED
+# 2011/06/13  Created - alexodba
+
+#set -x
+trap 'printf "\n"; exit' 0 1 2 3 9 15
+CONNSTR=$2
+INTERVAL=$1
+#typeset -a event
+#typeset -a waits
+#typeset -a waited
+if [ -z "$CONNSTR" ]; then
+        CONNSTR="/"
+fi
+if [ -z "$INTERVAL" ]; then
+   INTERVAL="1"
+fi
+
+printf "\t\t|                   Reads sec /  IO time msec                          |          Writes sec  /  IO time msec    |     LogFile    /  IO time msec          |\n"
+printf "\t\t| File Sequant |File Scatter |File Paralle |  Direct     | Direct Temp | File Parall |  Direct     | Direct Temp |Parall writes|Single Writes|  Syncs      |"
+#printf "\t\t---------------------------------------------------------------------------------------------------------------------------------------------------------------------------"
+while true
+do
+i=0
+now=`date "+%H:%M:%S"` 
+if [ ! -z "$ev" ]; then 
+        printf "\n"
+        printf "$now\t| "
+fi
+echo "set pagesize 0 linesize 199 heading off feedback off numwidth 25
+WITH q AS
+       (SELECT 'db file sequential read' AS event FROM DUAL
+        UNION ALL
+        SELECT 'db file scattered read' FROM DUAL
+        UNION ALL
+        SELECT 'db file parallel read' FROM DUAL
+        UNION ALL
+        SELECT 'direct path read' FROM DUAL
+        UNION ALL
+        SELECT 'direct path read temp' FROM DUAL
+        UNION ALL
+        SELECT 'db file parallel write' FROM DUAL
+        UNION ALL
+        SELECT 'direct path write' FROM DUAL
+        UNION ALL
+        SELECT 'direct path write temp' FROM DUAL
+        UNION ALL
+        SELECT 'log file single write' FROM DUAL
+        UNION ALL
+        SELECT 'log file parallel write' FROM DUAL
+        UNION ALL
+        SELECT 'log file sync' FROM DUAL)
+  SELECT REPLACE(q.event, ' ', '_') AS event, NVL(total_waits, 0), NVL(ROUND(time_waited_micro / 1000, 1), 0) time_waited_milli
+    FROM V\$SYSTEM_EVENT e, q
+   WHERE q.event = e.event(+)
+ORDER BY INSTR(event, 'read') DESC, INSTR(event, 'log_file'), event;" | sqlplus -s -L $CONNSTR | while read line 
+do
+        ev=`echo $line | cut -d" "  -f1`
+        wn=`echo $line | cut -d" "  -f2`
+        wt=`echo $line | cut -d" "  -f3`
+        if [ ! -z  "${event[i]}" ]; then 
+                let n=$((($wn-${waits[i]})))
+                printf "%5.1d " $((n / $INTERVAL ))
+                if [ wn -eq waits[i] ]; then
+                    printf "     - |"
+                else
+                    printf "%6.1d |" $((($wt- ${waited[i]}) / $n ))
+                fi
+        fi
+        event[i]=$ev
+        waits[i]=$wn
+        waited[i]=$wt
+        let i=$i+1
+done
+sleep $INTERVAL
+done
