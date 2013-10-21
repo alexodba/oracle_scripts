@@ -1,6 +1,6 @@
 /*
 #*****************************************************************************
-#  SOURCE          : sql10plan.sql 
+#  SOURCE          : https://github.com/alexodba/oracle_scripts/
 #  VERSION         : $Revision: 1.0 $
 #  AUTHOR          : Alexander Sobyanin
 #  IDEA            : Yury Velikanov
